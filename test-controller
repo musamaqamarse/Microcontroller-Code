@@ -1,5 +1,6 @@
-#include <Senses_wifi.h>
-#include <ArduinoJson.h> // Include ArduinoJson library for JSON parsing
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <ArduinoJson.h> // Library for JSON parsing
 
 // WiFi credentials
 const char* ssid = "Usama";        // Replace with your WiFi SSID
@@ -9,8 +10,8 @@ const char* password = "QaUh3734"; // Replace with your WiFi password
 const char* apiUrl = "https://hardware-store-java-89ddc23c99ed.herokuapp.com/api/open/v1/auth/test/hello";
 
 // Pin definitions
-const int buttonPin = D2;  // GPIO for the button
-const int ledPin = D13;    // GPIO for the LED
+const int buttonPin = 2;  // GPIO for the button (use raw pin numbers)
+const int ledPin = 13;    // GPIO for the LED (use raw pin numbers)
 
 // Variables
 bool buttonPressed = false;
@@ -24,11 +25,11 @@ void setup() {
   pinMode(ledPin, OUTPUT);          // LED as output
   digitalWrite(ledPin, LOW);        // Ensure LED is off initially
 
-  // Connect to WiFi using Senses_wifi
+  // Connect to WiFi
   Serial.print("Connecting to WiFi...");
-  Senses_wifi.begin(ssid, password);
+  WiFi.begin(ssid, password);
 
-  while (!Senses_wifi.isConnected()) {
+  while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
@@ -58,39 +59,50 @@ void loop() {
 }
 
 bool sendApiRequest() {
-  if (!Senses_wifi.isConnected()) {
+  if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi not connected!");
     return false;
   }
 
-  // Create a POST request with Senses_wifi
-  String jsonPayload = "{}"; // Sending an empty JSON payload
-  String response = Senses_wifi.post(apiUrl, jsonPayload);
+  // HTTP POST request
+  WiFiClient client;          // Create a WiFiClient object
+  HTTPClient http;            // Create an HTTPClient object
+  http.begin(client, apiUrl); // Use the new ::begin(WiFiClient, url) method
+  http.addHeader("Content-Type", "application/json"); // Add JSON header
+  String jsonPayload = "{}";           // Sending an empty JSON payload
+  int httpResponseCode = http.POST(jsonPayload);
 
-  if (response.isEmpty()) {
-    Serial.println("No response received!");
-    return false;
-  }
+  if (httpResponseCode > 0) {
+    // Parse the JSON response
+    String response = http.getString();
+    Serial.print("HTTP Response Code: ");
+    Serial.println(httpResponseCode);
+    Serial.print("Response: ");
+    Serial.println(response);
 
-  // Parse the JSON response using ArduinoJson
-  StaticJsonDocument<256> doc;
-  DeserializationError error = deserializeJson(doc, response);
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, response);
 
-  if (error) {
-    Serial.print("JSON Parsing failed: ");
-    Serial.println(error.c_str());
-    return false;
-  }
+    if (error) {
+      Serial.print("JSON Parsing failed: ");
+      Serial.println(error.c_str());
+      return false;
+    }
 
-  // Extract the responseCode
-  int responseCode = doc["responseCode"];
-  Serial.print("Response Code: ");
-  Serial.println(responseCode);
+    // Extract the responseCode
+    int responseCode = doc["responseCode"];
+    Serial.print("Response Code: ");
+    Serial.println(responseCode);
 
-  // Check if responseCode is 1
-  if (responseCode == 1) {
-    return true; // Success
+    // Check if responseCode is 1
+    if (responseCode == 1) {
+      return true; // Success
+    }
   } else {
-    return false; // Error
+    Serial.print("HTTP POST failed, error: ");
+    Serial.println(http.errorToString(httpResponseCode));
   }
+
+  http.end(); // End the HTTP connection
+  return false;
 }
