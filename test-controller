@@ -1,11 +1,12 @@
 #include <Senses_wifi.h>
+#include <ArduinoJson.h> // Include ArduinoJson library for JSON parsing
 
 // WiFi credentials
 const char* ssid = "Usama";        // Replace with your WiFi SSID
-const char* password = "QaUh3734"; // Replace with your WiFi Password
+const char* password = "QaUh3734"; // Replace with your WiFi password
 
 // API URL
-const char* apiUrl = "https://hardware-store-java-89ddc23c99ed.herokuapp.com/api/open/v1/auth/test/hello"; // Replace with your API URL
+const char* apiUrl = "https://hardware-store-java-89ddc23c99ed.herokuapp.com/api/open/v1/auth/test/hello";
 
 // Pin definitions
 const int buttonPin = D2;  // GPIO for the button
@@ -41,12 +42,12 @@ void loop() {
 
     Serial.println("Button pressed, sending API request...");
     if (sendApiRequest()) {
-      Serial.println("200 OK received. Turning on LED...");
+      Serial.println("ResponseCode = 1 received. Turning on LED...");
       digitalWrite(ledPin, HIGH); // Turn on LED
       delay(1000);               // Wait for 1 second
       digitalWrite(ledPin, LOW); // Turn off LED
     } else {
-      Serial.println("Failed to receive 200 OK.");
+      Serial.println("ResponseCode != 1. No LED action.");
     }
   }
 
@@ -62,13 +63,34 @@ bool sendApiRequest() {
     return false;
   }
 
-  // Use Senses_wifi to send GET request
-  String response = Senses_wifi.get(apiUrl);
-  if (response.startsWith("200")) { // Check if the response starts with "200 OK"
-    Serial.println("API call successful!");
-    return true;
-  } else {
-    Serial.printf("Error: %s\n", response.c_str());
+  // Create a POST request with Senses_wifi
+  String jsonPayload = "{}"; // Sending an empty JSON payload
+  String response = Senses_wifi.post(apiUrl, jsonPayload);
+
+  if (response.isEmpty()) {
+    Serial.println("No response received!");
     return false;
+  }
+
+  // Parse the JSON response using ArduinoJson
+  StaticJsonDocument<256> doc;
+  DeserializationError error = deserializeJson(doc, response);
+
+  if (error) {
+    Serial.print("JSON Parsing failed: ");
+    Serial.println(error.c_str());
+    return false;
+  }
+
+  // Extract the responseCode
+  int responseCode = doc["responseCode"];
+  Serial.print("Response Code: ");
+  Serial.println(responseCode);
+
+  // Check if responseCode is 1
+  if (responseCode == 1) {
+    return true; // Success
+  } else {
+    return false; // Error
   }
 }
