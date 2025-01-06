@@ -1,0 +1,74 @@
+#include <Senses_wifi.h>
+
+// WiFi credentials
+const char* ssid = "Usama";        // Replace with your WiFi SSID
+const char* password = "QaUh3734"; // Replace with your WiFi Password
+
+// API URL
+const char* apiUrl = "https://hardware-store-java-89ddc23c99ed.herokuapp.com/api/open/v1/auth/test/hello"; // Replace with your API URL
+
+// Pin definitions
+const int buttonPin = D2;  // GPIO for the button
+const int ledPin = D13;    // GPIO for the LED
+
+// Variables
+bool buttonPressed = false;
+
+void setup() {
+  // Initialize Serial Monitor
+  Serial.begin(115200);
+
+  // Configure pin modes
+  pinMode(buttonPin, INPUT_PULLUP); // Button with pull-up resistor
+  pinMode(ledPin, OUTPUT);          // LED as output
+  digitalWrite(ledPin, LOW);        // Ensure LED is off initially
+
+  // Connect to WiFi using Senses_wifi
+  Serial.print("Connecting to WiFi...");
+  Senses_wifi.begin(ssid, password);
+
+  while (!Senses_wifi.isConnected()) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println(" Connected!");
+}
+
+void loop() {
+  // Check if button is pressed
+  if (digitalRead(buttonPin) == LOW && !buttonPressed) {
+    buttonPressed = true; // Prevent multiple triggers for the same press
+
+    Serial.println("Button pressed, sending API request...");
+    if (sendApiRequest()) {
+      Serial.println("200 OK received. Turning on LED...");
+      digitalWrite(ledPin, HIGH); // Turn on LED
+      delay(1000);               // Wait for 1 second
+      digitalWrite(ledPin, LOW); // Turn off LED
+    } else {
+      Serial.println("Failed to receive 200 OK.");
+    }
+  }
+
+  // Reset button state when released
+  if (digitalRead(buttonPin) == HIGH) {
+    buttonPressed = false;
+  }
+}
+
+bool sendApiRequest() {
+  if (!Senses_wifi.isConnected()) {
+    Serial.println("WiFi not connected!");
+    return false;
+  }
+
+  // Use Senses_wifi to send GET request
+  String response = Senses_wifi.get(apiUrl);
+  if (response.startsWith("200")) { // Check if the response starts with "200 OK"
+    Serial.println("API call successful!");
+    return true;
+  } else {
+    Serial.printf("Error: %s\n", response.c_str());
+    return false;
+  }
+}
